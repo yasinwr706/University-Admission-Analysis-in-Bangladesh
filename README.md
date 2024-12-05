@@ -7,10 +7,10 @@ This repository contains the analysis and code for exploring university admissio
 •	Statistical Validation: Hypothesis testing to confirm significant trends.
 •	Visualization: Clear and interpretable visualizations to present findings.
 ## Dataset
-•	Source: University Admission Survey in Bangladesh.
+•	Source: [University Admission Survey in Bangladesh](https://www.kaggle.com/datasets/ahefatresearch/undergraduate-admission-test-survey-in-bangladesh?resource=download)
 •	Variables:
 o	Numerical: SSC GPA, HSC GPA.
-o	Categorical: Gender, Region, Admission Type, etc.
+o	Categorical: Family economy, residence, social media engagement, etc.
 o	Target Variable: University Type (Public/Private).
 ## Requirements
 To run the analysis, ensure the following software and packages are installed:
