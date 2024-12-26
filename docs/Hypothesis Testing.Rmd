@@ -1,0 +1,361 @@
+---
+title: 'Hypothesis Testing: An Overview and Comparison of Permutation and Traditional
+  Tests'
+author: "Yasin Wahid Rabby, Phd"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  prettydoc::html_pretty:
+    theme: architect
+    highlight: github
+    toc: true
+---
+
+# **Background**
+
+**Hypothesis testing** is a method for evaluating assumptions about a population based on sample data. In data science, it is often applied in the form of [**A/B testing**](https://en.wikipedia.org/wiki/A/B_testing)**.** Thus, hypothesis testing is important for research purposes and plays a critical role in industrial practices within data analytics. In the statistics courses that I teach at Wake Forest University, I cover both parametric and non-parametric methods for hypothesis testing. I have observed that students often struggle to select the most appropriate test. At times, it seems as though the primary objective of statistical classes is to teach how to choose the correct test, which is not entirely accurate.
+
+Hypothesis testing helps us determine whether the differences between two or more groups are real or merely due to random variation. While traditional statistical tests such as the t-test, Mann-Whitney U test, and Chi-square test are widely used, we can also apply permutation tests as an alternative.
+
+**In a permutation test,** when comparing two groups (e.g., Group A and Group B), the entire data set is combined, and data points are re-sampled into Groups A and B repeatedly—typically 10,000 or more times. Relevant statistics are calculated for each iteration, and the p-value is then computed, representing the proportion of times the re-sampled statistics exceed the observed difference. Notably, permutation tests do not rely on underlying assumptions about the data’s distribution.
+
+# **Goal and the Data set**
+
+As the title suggests, this study focuses on comparing traditional statistical tests with permutation tests. For the traditional statistical tests, we will select the appropriate method based on the type of variables and whether the assumptions of normality are met. In contrast, we will also perform permutation tests to examine their effectiveness.
+
+The dataset used in this analysis is a survey conducted on 600 students who took undergraduate admission tests in Bangladesh. The data was sourced from [Kaggle](https://www.kaggle.com/datasets/ahefatresearch/undergraduate-admission-test-survey-in-bangladesh/data). A separate project on [exploratory data analysis (EDA)](https://rpubs.com/yasinwr/1254615) has already been conducted, and you can refer to that work for a detailed understanding of the dataset.
+
+The dataset contains 15 variables, with **University**—indicating whether a student was admitted to private or public universities—being the target variable. Among the remaining 14 variables, **HSC GPA** and **SSC GPA** are numerical, while the rest are categorical.
+
+## *Data Preparation and Processing*
+
+Data preparation and processing involve addressing missing data. The EDA file provides a detailed description and explanation of the entire data processing workflow.
+
+```{r, eval=TRUE, message=FALSE, warning= FALSE}
+# Load required package
+library(dplyr)
+library(DT)
+library(tidyverse)
+#Load Data
+Data <- read.csv("C:/Users/yrabb/Downloads/Undergraduate Admission Test Survey in Bangladesh.csv")
+# Convert Coloumns 3 to 15 to factors
+Data <- Data %>% 
+  mutate(across(3:15, as.factor))
+# Check the Structure and Verify the Change
+converted_summary <- data.frame(
+ 
+  Data_Type = sapply(Data, class)
+)
+# Drop row with missing values
+Data_cleaned <- Data %>% drop_na()
+Data_cleaned_m <- Data_cleaned %>% 
+  mutate(University = recode(University, '0' = 'Private', '1' = 'Public'))
+# Recode the 'University' column: '0' -> 'Private' and '1' -> 'Public'
+```
+
+# **Numerical Variables**
+
+## *Traditional Statistical Test*
+
+The **HSC GPA** and **SSC GPA** are two numerical variables, and we aim to assess whether there is a significant difference in the mean or median of these GPAs between students who enrolled in public versus private universities. In this context, the two groups of interest are public and private university students.
+
+Public university admissions are generally considered more competitive than those for private universities. Therefore, we hypothesize that the HSC and SSC GPAs of students enrolled in public universities will be significantly higher compared to those of students enrolled in private universities. A boxplot is one of the initial visualization techniques commonly used to explore differences between groups. However, in this analysis, we will proceed directly to statistical testing, as this aspect was already examined in the previous [EDA project.](https://rpubs.com/yasinwr/1254615)
+
+For numerical variables depending on the assumption of the normality is met or not of the data we will either use [t-test](https://en.wikipedia.org/wiki/Student%27s_t-test) or [Mann-Whitney U test](https://en.wikipedia.org/wiki/Mann%E2%80%93Whitney_U_test).
+
+Here are the hypotheses for the tests conducted:
+
+### *Shapiro-Wilk Test for Normality*
+
+-   **Null Hypothesis (H₀):** The data is normally distributed.
+
+-   **Alternative Hypothesis (H₁):** The data is not normally distributed.
+
+### *t-Test (Two-Sample Independent t-Test)*
+
+This test is used when both groups are normally distributed.
+
+-   **Null Hypothesis (H₀):** There is no significant difference in the means of the variable (e.g., SSC_GPA or HSC_GPA) between the two groups (e.g., Private and Public universities).
+
+-   **Alternative Hypothesis (H₁):** There is a significant difference in the means of the variable between the two groups.​
+
+### *Mann-Whitney U Test (Wilcoxon Rank-Sum Test)*
+
+This test is used when at least one group is not normally distributed.
+
+-   **Null Hypothesis (H₀):** There is no significant difference in the distributions (or medians) of the variable (e.g., SSC_GPA or HSC_GPA) between the two groups (e.g., Private and Public universities).
+
+-   **Alternative Hypothesis (H₁):** There is a significant difference in the distributions (or medians) of the variable between the two groups.
+
+    We will create a function to test the normality of two groups, *Public* and *Private*. Based on the results, the function will perform either a t-test or a Mann-Whitney U test. Additionally, we will record the time taken by R to complete the operation.
+
+```{r, eval=TRUE, message=FALSE, warning= FALSE}
+# Load required library
+library(DT)
+start.time <- Sys.time()
+# Function to determine normality and perform appropriate test
+perform_test <- function(data, variable, group_var) {
+  # Subset the data for each group
+  group1 <- data[[variable]][data[[group_var]] == unique(data[[group_var]])[1]]
+  group2 <- data[[variable]][data[[group_var]] == unique(data[[group_var]])[2]]
+  
+  # Check normality for each group
+  shapiro_group1 <- shapiro.test(group1)$p.value
+  shapiro_group2 <- shapiro.test(group2)$p.value
+  
+  # Determine normality (p > 0.05 means data is normal)
+  is_normal <- shapiro_group1 > 0.05 & shapiro_group2 > 0.05
+  
+  # Perform the appropriate test
+  if (is_normal) {
+    test_result <- t.test(as.formula(paste(variable, "~", group_var)), data = data)
+    test_type <- "t-test"
+  } else {
+    test_result <- wilcox.test(as.formula(paste(variable, "~", group_var)), data = data)
+    test_type <- "Mann-Whitney Test"
+  }
+  
+  # Return test results
+  list(
+    Test_Type = test_type,
+    p.value = test_result$p.value,
+    Result = ifelse(test_result$p.value < 0.05, "Reject Null", "Fail to Reject Null")
+  )
+}
+
+# Apply the function to both SSC_GPA and HSC_GPA
+results <- list(
+  SSC = perform_test(Data_cleaned_m, "SSC_GPA", "University"),
+  HSC = perform_test(Data_cleaned_m, "HSC_GPA", "University")
+)
+
+# Create a data frame with results
+Wilcoxon_Results <- data.frame(
+  Test = names(results),
+  Test_Type = sapply(results, function(x) x$Test_Type),
+  p.value = sapply(results, function(x) x$p.value),
+  Result = sapply(results, function(x) x$Result)
+)
+end.time <- Sys.time()
+time.taken <- round(end.time - start.time,2)
+time.taken
+# Print the results
+datatable(Wilcoxon_Results)
+```
+
+Since the SSC and HSC GPA data for the public and private university groups are not normally distributed, the Mann-Whitney test was applied. The results indicate that students who gained admission to public universities generally have higher GPAs. We also recorded the time of the analysis so that we can compare it with the permutation test.
+
+## *Permutation Test*
+
+As mentioned earlier permutation test is a **non-parametric permutation test and it** does not assume any underlying distribution.
+
+```{r, eval=TRUE, message=FALSE, warning= FALSE}
+# Load the required library for displaying the table
+library(DT)
+# Start timer
+start.time <- Sys.time()
+# Load the dataset (replace with your actual dataset)
+data <- Data_cleaned_m
+
+# Function to perform a permutation test
+permutation_test <- function(data, variable, group_var, n_permutations = 10000) {
+  # Observed difference in medians
+  observed_stat <- abs(median(data[[variable]][data[[group_var]] == "Public"]) -
+                         median(data[[variable]][data[[group_var]] == "Private"]))
+  
+  # Combine the variable and shuffle group labels
+  combined <- data[[variable]]
+  group_labels <- data[[group_var]]
+  
+  # Generate permutation distribution
+  permuted_stats <- replicate(n_permutations, {
+    shuffled_labels <- sample(group_labels)
+    permuted_stat <- abs(median(combined[shuffled_labels == "Public"]) -
+                           median(combined[shuffled_labels == "Private"]))
+    return(permuted_stat)
+  })
+  
+  # Calculate p-value
+  p_value <- mean(permuted_stats >= observed_stat)
+  
+  # Return results
+  list(Observed_Stat = observed_stat, P_Value = p_value, Permutation_Distribution = permuted_stats)
+}
+
+
+# Perform the test for SSC_GPA
+ssc_result <- permutation_test(data, "SSC_GPA", "University")
+
+# Perform the test for HSC_GPA
+hsc_result <- permutation_test(data, "HSC_GPA", "University")
+
+# End timer
+end.time <- Sys.time()
+time.taken <- round(end.time - start.time, 2)
+time.taken
+# Create a table of results
+results_table <- data.frame(
+  Variable = c("SSC GPA", "HSC GPA"),
+  Observed_Stat = c(ssc_result$Observed_Stat, hsc_result$Observed_Stat),
+  P_Value = c(ssc_result$P_Value, hsc_result$P_Value),
+  Time_Taken = rep(time.taken, 2)
+)
+
+# Display the table with DT for an interactive table
+datatable(results_table, options = list(pageLength = 5))
+```
+
+A p-value of 0 indicates that none of the **10,000 permutations** generated a difference as extreme as the observed difference. This strongly suggests that the differences in medians between “Public” and “Private” groups for both SSC and HSC GPA are **statistically significant**.
+
+Both the **Permutation Test** and the **Mann-Whitney U Test** produce extremely small p-values. This indicates strong evidence against the null hypothesis, confirming significant differences in SSC GPA and HSC GPA between “Public” and “Private” groups. The processing time for the permutation test is approximately ten times longer than that of traditional statistical tests.
+
+# **Categorical Variables**
+
+## *Chi-Square Test*
+
+There are 12 categorical data and we will apply chi-square tests. The Chi-Square test is a non-parametric statistical test used to determine if there is a significant association between categorical variables. It evaluates whether the observed frequencies in a contingency table differ significantly from the expected frequencies under the assumption of independence.
+
+In this context, the Chi-Square tests have been used to assess whether there is a statistically significant relationship between **categorical variables** (e.g., Family Economy, Residence, Social Media Engagement) and the **type of university enrollment** (Public vs. Private).
+
+```{r, eval=TRUE, message=FALSE, warning= FALSE}
+
+library(dplyr)
+library(purrr)
+start.time <- Sys.time()
+# Define a function to run Chi-Square tests
+run_chi_square <- function(var, data, target_var) {
+  test_result <- chisq.test(table(data[[var]], data[[target_var]]))
+  tibble(
+    Variable = var,
+    X_squared = test_result$statistic,
+    df = test_result$parameter,
+    p_value_Chi_Square = test_result$p.value,
+    Significant_Chi_Square = ifelse(test_result$p.value < 0.05, "Yes", "No") # Add significance column
+  )
+}
+# List of variables to test
+variables <- c(
+  "Family_Economy",
+  "Residence",
+  "Family_Education",
+  "Politics",
+  "Social_Media_Engagement",
+  "Residence_with_Family",
+  "Duration_of_Study",
+  "College_Location", 
+  "Bad_Habits",
+  "Relationship",
+  "External_Factors"
+)
+ #Apply the function to each variable
+chi_square_results <- variables %>%
+  map_dfr(~ run_chi_square(.x, Data_cleaned_m, "University"))
+# Record the time taken for the operation
+end.time <- Sys.time()
+time.taken <- round(end.time - start.time, 2)
+time.taken
+# Render the table with significant results highlighted
+datatable(
+  chi_square_results, 
+  caption = "Table: Chi-Square Test Results",
+  options = list(
+    pageLength = 10
+  )
+) %>%
+  formatStyle(
+    'Significant_Chi_Square', 
+    target = 'row',
+    backgroundColor = styleEqual("Yes", "lightgreen")
+  )
+```
+
+The above table for chi-square test results also show the green highlighted variable show significant association in university enrollment type.
+
+## *Permutation Test*
+
+In this analysis, we apply **permutation tests** to assess the association between categorical variables and university enrollment types (Public vs. Private). Permutation tests are non-parametric methods that evaluate the significance of observed associations by comparing them to a distribution generated through random permutations of the data.
+
+```{r}
+library(dplyr)
+library(purrr)
+start.time <- Sys.time()
+# Function to perform a permutation test for categorical data
+permutation_test_chisq <- function(var, data, target_var, n_permutations = 10000) {
+  # Observed chi-squared statistic
+  observed_stat <- chisq.test(table(data[[var]], data[[target_var]]))$statistic
+  
+  # Combine target variable and shuffle for permutations
+  target_labels <- data[[target_var]]
+  permuted_stats <- replicate(n_permutations, {
+    shuffled_labels <- sample(target_labels)
+    chisq.test(table(data[[var]], shuffled_labels))$statistic
+  })
+  
+  # Calculate p-value
+  p_value <- mean(permuted_stats >= observed_stat)
+  
+  # Return results as a tibble
+  tibble(
+    Variable = var,
+    Observed_Stat = observed_stat,
+    P_Value_Permutation = p_value,
+    Significant_Permutation = ifelse(p_value < 0.05, "Yes", "No")
+  )
+}
+
+# List of variables to test
+variables <- c(
+  "Family_Economy",
+  "Residence",
+  "Family_Education",
+  "Politics",
+  "Social_Media_Engagement",
+  "Residence_with_Family",
+  "Duration_of_Study",
+  "College_Location", 
+  "Bad_Habits",
+  "Relationship",
+  "External_Factors"
+)
+
+# Apply the function to each variable
+permutation_results <- variables %>%
+  map_dfr(~ permutation_test_chisq(.x, Data_cleaned_m, "University"))
+# Record the time taken for the operation
+end.time <- Sys.time()
+time.taken <- round(end.time - start.time, 2)
+time.taken
+# Render the table with significant results highlighted
+library(DT)
+
+datatable(
+  permutation_results, 
+  caption = "Table: Permutation Test Results",
+  options = list(
+    pageLength = 10
+  )
+) %>%
+  formatStyle(
+    'Significant_Permutation', 
+    target = 'row',
+    backgroundColor = styleEqual("Yes", "lightgreen")
+  )
+```
+
+## *Comparison*
+
+Here’s the **comparison** between the Chi-Square test and Permutation test results for the given variables:
+
+```{r}
+#Join the tbale
+chi_vs_perm <- chi_square_results %>% inner_join(permutation_results)
+#load the DT library
+library(DT)
+# Show the new table
+datatable(chi_vs_perm)
+```
+
+Both Chi_Square and permutation tests are generally in agreement about which variables are significant. For **Residence_with_Family**, the Chi-Square test marks it as **not significant** (p = 0.0514), while the Permutation test identifies it as **significant** (p = 0.049).The p-values for the **Permutation test** are slightly more precise, as they account for sampling variability through resampling. In terms of computational efficiency, the permutation test required approximately 500 times more processing time than the traditional chi-square test, and this is understandable because we have 12 variables and for each of them 10,000 permutations were conducted. But still it is around 60 seconds.
+
+# **Reference to EDA**
+
+For a comprehensive understanding of the dataset and initial insights, please refer to the [EDA](https://rpubs.com/yasinwr/1254615) file. It provides detailed summaries, visualizations, and patterns observed in the data, which lay the foundation for the hypothesis testing performed in this project.
